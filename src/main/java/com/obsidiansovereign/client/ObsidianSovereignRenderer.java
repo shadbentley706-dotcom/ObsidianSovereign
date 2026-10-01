@@ -18,7 +18,9 @@ public class ObsidianSovereignRenderer extends HumanoidMobRenderer<ObsidianSover
 
     public ObsidianSovereignRenderer(EntityRendererProvider.Context ctx) {
         super(ctx, new HumanoidModel<>(ctx.bakeLayer(ModelLayers.ZOMBIE)), 0.5F * SCALE);
+        this.addLayer(new SovereignCapeLayer(this, ctx.getModelSet()));
         this.addLayer(new GlowLayer<>(this, GLOW));
+        this.addLayer(new SovereignForceFieldLayer(this, ctx.getModelSet()));
     }
 
     @Override

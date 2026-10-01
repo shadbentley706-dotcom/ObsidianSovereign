@@ -1,0 +1,32 @@
+{
+  "parent": "obsidiansovereign:root",
+  "display": {
+    "icon": {
+      "item": "obsidiansovereign:sovereign_sigil"
+    },
+    "title": {
+      "translate": "advancements.obsidiansovereign.sigil.title"
+    },
+    "description": {
+      "translate": "advancements.obsidiansovereign.sigil.description"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "has_sigil": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "obsidiansovereign:sovereign_sigil"
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

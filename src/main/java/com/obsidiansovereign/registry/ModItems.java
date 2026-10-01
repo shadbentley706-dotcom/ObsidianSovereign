@@ -21,7 +21,11 @@ public class ModItems {
             () -> new Item(new Item.Properties().rarity(Rarity.UNCOMMON)));
 
     public static final RegistryObject<Item> SOVEREIGN_SCEPTER = ITEMS.register("sovereign_scepter",
-            () -> new SovereignScepterItem(new Item.Properties().durability(500).rarity(Rarity.EPIC).fireResistant()));
+            () -> new SovereignScepterItem(new Item.Properties().durability(3000).rarity(Rarity.EPIC).fireResistant()));
+
+    /** Only used as the creative tab icon. */
+    public static final RegistryObject<Item> SOVEREIGN_EMBLEM = ITEMS.register("sovereign_emblem",
+            () -> new Item(new Item.Properties().rarity(Rarity.EPIC)));
 
     public static final RegistryObject<Item> SOVEREIGN_SIGIL = ITEMS.register("sovereign_sigil",
             () -> new SovereignSigilItem(new Item.Properties().stacksTo(16).rarity(Rarity.RARE)));

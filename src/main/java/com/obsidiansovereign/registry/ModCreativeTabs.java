@@ -14,7 +14,7 @@ public class ModCreativeTabs {
 
     public static final RegistryObject<CreativeModeTab> MAIN = TABS.register("main", () -> CreativeModeTab.builder()
             .title(Component.translatable("itemGroup.obsidiansovereign"))
-            .icon(() -> new ItemStack(ModItems.SOVEREIGN_SCEPTER.get()))
+            .icon(() -> new ItemStack(ModItems.SOVEREIGN_EMBLEM.get()))
             .displayItems((params, output) -> {
                 output.accept(ModItems.SOVEREIGN_SIGIL.get());
                 output.accept(ModItems.SOVEREIGN_SCEPTER.get());

@@ -25,6 +25,7 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.MobSpawnType;
+import net.minecraft.world.entity.PowerableMob;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
@@ -47,16 +48,18 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * The Obsidian Sovereign: a three-phase warlock-king boss.
- *  Phase 1 (100%-66%): arcane bolts + teleport strikes.
- *  Phase 2 (66%-33%): raises a crystal shield that absorbs damage and summons Runebound Soldiers.
- *                     Shattering the shield stuns him and he takes bonus damage while stunned.
- *  Phase 3 (33%-0%):  enraged - faster, triple bolts, telegraphed ground-slam shockwaves.
+ *  Phase 1 (100%-66%): arcane bolts, teleport strikes, flight, force fields.
+ *  Phase 2 (66%-33%): crystal shield (force field that must be shattered) + Runebound Soldiers.
+ *  Phase 3 (33%-0%):  enraged - faster, triple bolts, more flight, divebomb + ground-slam shockwaves.
+ * He has no voice: he fights in complete silence.
  */
-public class ObsidianSovereignEntity extends Monster {
+public class ObsidianSovereignEntity extends Monster implements PowerableMob {
     private static final EntityDataAccessor<Integer> DATA_PHASE =
             SynchedEntityData.defineId(ObsidianSovereignEntity.class, EntityDataSerializers.INT);
     private static final EntityDataAccessor<Integer> DATA_SHIELD =
             SynchedEntityData.defineId(ObsidianSovereignEntity.class, EntityDataSerializers.INT);
+    private static final EntityDataAccessor<Boolean> DATA_FIELD =
+            SynchedEntityData.defineId(ObsidianSovereignEntity.class, EntityDataSerializers.BOOLEAN);
 
     public static final int MAX_SHIELD = 80;
     private static final int MAX_SOLDIERS = 6;
@@ -71,6 +74,15 @@ public class ObsidianSovereignEntity extends Monster {
     private int slamCharge = 0;
     private int stunTicks = 0;
 
+    private int flyTicks = 0;
+    private int flyCooldown = 100;
+    private float orbitAngle = 0.0F;
+    private int meleeCooldown = 0;
+    private boolean diveBomb = false;
+
+    private int fieldTicks = 0;
+    private int fieldCooldown = 160;
+
     public ObsidianSovereignEntity(EntityType<? extends ObsidianSovereignEntity> type, Level level) {
         super(type, level);
         this.xpReward = 150;
@@ -81,7 +93,7 @@ public class ObsidianSovereignEntity extends Monster {
     public static AttributeSupplier.Builder createAttributes() {
         return Monster.createMonsterAttributes()
                 .add(Attributes.MAX_HEALTH, 300.0D)
-                .add(Attributes.ATTACK_DAMAGE, 12.0D)
+                .add(Attributes.ATTACK_DAMAGE, 5.0D) // + the scepter's own damage
                 .add(Attributes.ATTACK_KNOCKBACK, 1.5D)
                 .add(Attributes.ARMOR, 12.0D)
                 .add(Attributes.ARMOR_TOUGHNESS, 6.0D)
@@ -119,7 +131,11 @@ public class ObsidianSovereignEntity extends Monster {
     }
 
     private boolean isBusy() {
-        return stunTicks > 0 || slamCharge > 0;
+        return stunTicks > 0 || slamCharge > 0 || isFlying();
+    }
+
+    public boolean isFlying() {
+        return flyTicks > 0;
     }
 
     @Override
@@ -128,9 +144,11 @@ public class ObsidianSovereignEntity extends Monster {
         ServerLevel server = (ServerLevel) this.level();
         this.bossEvent.setProgress(this.getHealth() / this.getMaxHealth());
         updatePhase(server);
+        tickForceField();
 
         if (stunTicks > 0) {
             stunTicks--;
+            if (isFlying()) stopFlying(false);
             this.getNavigation().stop();
             if (stunTicks % 5 == 0) {
                 server.sendParticles(ParticleTypes.ENCHANTED_HIT, getX(), getY() + getBbHeight() + 0.3D, getZ(),
@@ -143,14 +161,22 @@ public class ObsidianSovereignEntity extends Monster {
         if (teleportCooldown > 0) teleportCooldown--;
         if (summonCooldown > 0) summonCooldown--;
         if (slamCooldown > 0) slamCooldown--;
+        if (flyCooldown > 0) flyCooldown--;
+        if (meleeCooldown > 0) meleeCooldown--;
+
+        // Divebomb landing -> shockwave
+        if (diveBomb && this.onGround()) {
+            diveBomb = false;
+            groundSlam(server);
+        }
 
         LivingEntity target = this.getTarget();
         if (target == null || !target.isAlive()) {
             slamCharge = 0;
+            if (isFlying()) stopFlying(false);
             return;
         }
 
-        // Telegraphed ground slam: wind-up, then shockwave.
         if (slamCharge > 0) {
             slamCharge--;
             this.getNavigation().stop();
@@ -162,10 +188,25 @@ public class ObsidianSovereignEntity extends Monster {
         int phase = getPhase();
         double distSq = this.distanceToSqr(target);
 
+        // ---- Airborne: circle above the target and rain bolts
+        if (isFlying()) {
+            tickFlight(server, target, phase);
+            if (boltCooldown <= 0 && this.hasLineOfSight(target)) {
+                castBolts(target, phase);
+                boltCooldown = phase == 3 ? 25 : 40;
+            }
+            return;
+        }
+
+        // ---- Take off: when the target is above him, or now and then
+        if (flyCooldown <= 0 && (target.getY() - getY() > 3.0D || this.random.nextInt(phase == 3 ? 60 : 140) == 0)) {
+            startFlying(server);
+            return;
+        }
+
         if (phase == 3 && slamCooldown <= 0 && distSq < 36.0D) {
             slamCharge = 15;
             slamCooldown = 100;
-            this.playSound(SoundEvents.EVOKER_PREPARE_ATTACK, 2.0F, 0.5F);
             return;
         }
 
@@ -200,17 +241,112 @@ public class ObsidianSovereignEntity extends Monster {
             summonSoldiers(server, this.getTarget(), 3);
             summonCooldown = 300;
         } else if (phase == 3) {
-            this.playSound(SoundEvents.RAVAGER_ROAR, 3.0F, 0.6F);
             server.sendParticles(ParticleTypes.DRAGON_BREATH, getX(), getY() + 1.5D, getZ(), 100, 1.2D, 1.5D, 1.2D, 0.05D);
             this.bossEvent.setColor(BossEvent.BossBarColor.RED);
             applyEnrage();
             teleportCooldown = 40;
+            flyCooldown = 20;
+            activateForceField(server);
         }
     }
 
     private void applyEnrage() {
         AttributeInstance speed = this.getAttribute(Attributes.MOVEMENT_SPEED);
         if (speed != null) speed.setBaseValue(0.38D);
+    }
+
+    // ---------------------------------------------------------------- Flight
+
+    private void startFlying(ServerLevel server) {
+        flyTicks = 100 + this.random.nextInt(60);
+        this.setNoGravity(true);
+        this.getNavigation().stop();
+        this.setDeltaMovement(this.getDeltaMovement().add(0.0D, 0.6D, 0.0D));
+        this.hasImpulse = true;
+        orbitAngle = this.random.nextFloat() * Mth.TWO_PI;
+        server.sendParticles(ParticleTypes.REVERSE_PORTAL, getX(), getY(), getZ(), 40, 0.6D, 0.2D, 0.6D, 0.1D);
+        this.playSound(SoundEvents.PHANTOM_FLAP, 2.0F, 0.6F);
+    }
+
+    private void tickFlight(ServerLevel server, LivingEntity target, int phase) {
+        flyTicks--;
+        this.getNavigation().stop();
+        this.getMoveControl().setWantedPosition(getX(), getY(), getZ(), 0.0D);
+
+        orbitAngle += phase == 3 ? 0.06F : 0.04F;
+        Vec3 dest = new Vec3(target.getX() + Math.cos(orbitAngle) * 5.0D, target.getY() + 3.5D,
+                target.getZ() + Math.sin(orbitAngle) * 5.0D);
+        Vec3 diff = dest.subtract(this.position());
+        double speed = phase == 3 ? 0.45D : 0.32D;
+        Vec3 wanted = diff.lengthSqr() > speed * speed ? diff.normalize().scale(speed) : diff;
+        this.setDeltaMovement(this.getDeltaMovement().scale(0.5D).add(wanted.scale(0.5D)));
+
+        double dx = target.getX() - getX();
+        double dz = target.getZ() - getZ();
+        float yaw = (float) (Mth.atan2(dz, dx) * (180.0D / Math.PI)) - 90.0F;
+        this.setYRot(yaw);
+        this.yBodyRot = yaw;
+        this.yHeadRot = yaw;
+        this.getLookControl().setLookAt(target, 30.0F, 30.0F);
+
+        if (meleeCooldown <= 0 && this.distanceToSqr(target) < 6.0D) {
+            this.swing(InteractionHand.MAIN_HAND);
+            this.doHurtTarget(target);
+            meleeCooldown = 20;
+        }
+        if (flyTicks <= 0) stopFlying(phase == 3);
+    }
+
+    private void stopFlying(boolean dive) {
+        flyTicks = 0;
+        this.setNoGravity(false);
+        flyCooldown = 200;
+        if (dive) {
+            diveBomb = true;
+            Vec3 v = this.getDeltaMovement();
+            this.setDeltaMovement(v.x, -1.2D, v.z);
+        }
+    }
+
+    // ---------------------------------------------------------------- Force field
+
+    public boolean isFieldActive() {
+        return this.entityData.get(DATA_FIELD);
+    }
+
+    /** Used by the swirl render layer: visible whenever the field OR the phase-2 crystal shield is up. */
+    @Override
+    public boolean isPowered() {
+        return isFieldActive() || getShield() > 0;
+    }
+
+    private void tickForceField() {
+        if (fieldTicks > 0 && --fieldTicks == 0) this.entityData.set(DATA_FIELD, false);
+        if (fieldCooldown > 0) fieldCooldown--;
+    }
+
+    private void activateForceField(ServerLevel server) {
+        fieldTicks = 60;
+        fieldCooldown = getPhase() == 3 ? 160 : 240;
+        this.entityData.set(DATA_FIELD, true);
+        this.playSound(SoundEvents.BEACON_POWER_SELECT, 2.0F, 1.4F);
+
+        // Repulsor pulse: blasts everyone nearby away.
+        for (int i = 0; i < 32; i++) {
+            double a = i / 32.0D * Math.PI * 2.0D;
+            server.sendParticles(ParticleTypes.REVERSE_PORTAL, getX() + Math.cos(a) * 2.5D, getY() + 1.2D,
+                    getZ() + Math.sin(a) * 2.5D, 2, 0.0D, 0.3D, 0.0D, 0.05D);
+        }
+        AABB area = this.getBoundingBox().inflate(5.0D, 2.0D, 5.0D);
+        for (LivingEntity e : server.getEntitiesOfClass(LivingEntity.class, area,
+                e -> e != this && e.isAlive() && !(e instanceof RuneboundSoldierEntity))) {
+            double dx = e.getX() - getX();
+            double dz = e.getZ() - getZ();
+            e.hurt(this.damageSources().indirectMagic(this, this), 4.0F);
+            e.knockback(1.6D, -dx, -dz);
+            e.setDeltaMovement(e.getDeltaMovement().add(0.0D, 0.3D, 0.0D));
+            e.hurtMarked = true;
+        }
     }
 
     // ---------------------------------------------------------------- Attacks
@@ -308,19 +444,34 @@ public class ObsidianSovereignEntity extends Monster {
     public boolean hurt(DamageSource source, float amount) {
         if (this.isInvulnerableTo(source)) return false;
 
-        if (!this.level().isClientSide && getShield() > 0 && !source.is(DamageTypeTags.BYPASSES_INVULNERABILITY)) {
-            int remaining = getShield() - Mth.ceil(amount);
-            this.playSound(SoundEvents.AMETHYST_BLOCK_HIT, 2.0F, 0.7F + this.random.nextFloat() * 0.3F);
-            if (remaining <= 0) shatterShield();
-            else setShield(remaining);
-            return false;
+        if (!this.level().isClientSide && !source.is(DamageTypeTags.BYPASSES_INVULNERABILITY)) {
+            // Force field: blocks everything (arrows bounce off).
+            if (isFieldActive()) {
+                this.playSound(SoundEvents.AMETHYST_BLOCK_HIT, 1.5F, 1.4F);
+                return false;
+            }
+            // Phase-2 crystal shield: soaks damage until shattered.
+            if (getShield() > 0) {
+                int remaining = getShield() - Mth.ceil(amount);
+                this.playSound(SoundEvents.AMETHYST_BLOCK_HIT, 2.0F, 0.7F + this.random.nextFloat() * 0.3F);
+                if (remaining <= 0) shatterShield();
+                else setShield(remaining);
+                return false;
+            }
         }
         if (stunTicks > 0) amount *= 1.5F;
-        return super.hurt(source, amount);
+        boolean result = super.hurt(source, amount);
+        if (result && !this.level().isClientSide && stunTicks <= 0 && fieldCooldown <= 0
+                && this.random.nextFloat() < 0.35F) {
+            activateForceField((ServerLevel) this.level());
+        }
+        return result;
     }
 
     private void shatterShield() {
         setShield(0);
+        fieldTicks = 0;
+        this.entityData.set(DATA_FIELD, false);
         stunTicks = 100;
         slamCharge = 0;
         this.getNavigation().stop();
@@ -348,16 +499,14 @@ public class ObsidianSovereignEntity extends Monster {
     public void aiStep() {
         super.aiStep();
         if (this.level().isClientSide) {
-            if (getShield() > 0) {
-                for (int i = 0; i < 3; i++) {
-                    double a = this.random.nextDouble() * Math.PI * 2.0D;
-                    this.level().addParticle(ParticleTypes.REVERSE_PORTAL,
-                            getX() + Math.cos(a) * 1.6D, getY() + this.random.nextDouble() * getBbHeight(),
-                            getZ() + Math.sin(a) * 1.6D, 0.0D, 0.02D, 0.0D);
-                }
-            }
             if (this.random.nextInt(3) == 0) {
                 this.level().addParticle(ParticleTypes.WITCH, getRandomX(0.6D), getRandomY(), getRandomZ(0.6D), 0.0D, 0.0D, 0.0D);
+            }
+            if (this.isNoGravity()) { // flight trail
+                for (int i = 0; i < 2; i++) {
+                    this.level().addParticle(ParticleTypes.REVERSE_PORTAL, getRandomX(0.4D), getY() - 0.1D,
+                            getRandomZ(0.4D), 0.0D, -0.05D, 0.0D);
+                }
             }
             if (getPhase() >= 3 && this.random.nextInt(2) == 0) {
                 this.level().addParticle(ParticleTypes.DRAGON_BREATH, getRandomX(0.6D), getRandomY(), getRandomZ(0.6D), 0.0D, 0.03D, 0.0D);
@@ -398,11 +547,10 @@ public class ObsidianSovereignEntity extends Monster {
         return other instanceof RuneboundSoldierEntity || super.isAlliedTo(other);
     }
 
-    @Override protected SoundEvent getAmbientSound() { return SoundEvents.EVOKER_AMBIENT; }
-    @Override protected SoundEvent getHurtSound(DamageSource source) { return SoundEvents.IRON_GOLEM_HURT; }
-    @Override protected SoundEvent getDeathSound() { return SoundEvents.WITHER_DEATH; }
-    @Override public float getVoicePitch() { return 0.55F; }
-    @Override protected float getSoundVolume() { return 2.0F; }
+    // No voice at all.
+    @Override @Nullable protected SoundEvent getAmbientSound() { return null; }
+    @Override @Nullable protected SoundEvent getHurtSound(DamageSource source) { return null; }
+    @Override @Nullable protected SoundEvent getDeathSound() { return null; }
 
     // ---------------------------------------------------------------- Data
 
@@ -411,6 +559,7 @@ public class ObsidianSovereignEntity extends Monster {
         super.defineSynchedData();
         this.entityData.define(DATA_PHASE, 1);
         this.entityData.define(DATA_SHIELD, 0);
+        this.entityData.define(DATA_FIELD, false);
     }
 
     public int getPhase() { return this.entityData.get(DATA_PHASE); }
@@ -424,6 +573,7 @@ public class ObsidianSovereignEntity extends Monster {
         tag.putInt("Phase", getPhase());
         tag.putInt("Shield", getShield());
         tag.putInt("StunTicks", stunTicks);
+        tag.putInt("FlyTicks", flyTicks);
     }
 
     @Override
@@ -432,6 +582,8 @@ public class ObsidianSovereignEntity extends Monster {
         if (tag.contains("Phase")) setPhase(Math.max(1, tag.getInt("Phase")));
         setShield(tag.getInt("Shield"));
         stunTicks = tag.getInt("StunTicks");
+        flyTicks = tag.getInt("FlyTicks");
+        if (flyTicks <= 0) this.setNoGravity(false);
         if (this.hasCustomName()) this.bossEvent.setName(this.getDisplayName());
         if (getPhase() >= 3) {
             this.bossEvent.setColor(BossEvent.BossBarColor.RED);

@@ -1,0 +1,47 @@
+{
+  "parent": "obsidiansovereign:defeat_sovereign",
+  "display": {
+    "icon": {
+      "item": "obsidiansovereign:sovereign_chestplate"
+    },
+    "title": {
+      "translate": "advancements.obsidiansovereign.armor.title"
+    },
+    "description": {
+      "translate": "advancements.obsidiansovereign.armor.description"
+    },
+    "frame": "goal",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "armor": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "obsidiansovereign:sovereign_helmet"
+            ]
+          },
+          {
+            "items": [
+              "obsidiansovereign:sovereign_chestplate"
+            ]
+          },
+          {
+            "items": [
+              "obsidiansovereign:sovereign_leggings"
+            ]
+          },
+          {
+            "items": [
+              "obsidiansovereign:sovereign_boots"
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

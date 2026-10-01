@@ -1,0 +1,23 @@
+{
+  "display": {
+    "icon": {
+      "item": "obsidiansovereign:sovereign_emblem"
+    },
+    "title": {
+      "translate": "advancements.obsidiansovereign.root.title"
+    },
+    "description": {
+      "translate": "advancements.obsidiansovereign.root.description"
+    },
+    "frame": "task",
+    "show_toast": false,
+    "announce_to_chat": false,
+    "hidden": false,
+    "background": "minecraft:textures/block/crying_obsidian.png"
+  },
+  "criteria": {
+    "tick": {
+      "trigger": "minecraft:tick"
+    }
+  }
+}

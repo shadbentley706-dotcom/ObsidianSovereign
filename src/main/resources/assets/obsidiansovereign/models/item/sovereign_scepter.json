@@ -2,5 +2,58 @@
   "parent": "minecraft:item/handheld",
   "textures": {
     "layer0": "obsidiansovereign:item/sovereign_scepter"
+  },
+  "display": {
+    "thirdperson_righthand": {
+      "rotation": [
+        0,
+        -90,
+        55
+      ],
+      "translation": [
+        0,
+        7.5,
+        1.5
+      ],
+      "scale": [
+        1.6,
+        1.6,
+        0.8
+      ]
+    },
+    "firstperson_righthand": {
+      "rotation": [
+        0,
+        -90,
+        25
+      ],
+      "translation": [
+        1.13,
+        5.0,
+        1.13
+      ],
+      "scale": [
+        1.15,
+        1.15,
+        0.6
+      ]
+    },
+    "gui": {
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "translation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ]
+    }
   }
 }
