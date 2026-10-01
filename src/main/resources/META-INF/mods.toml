@@ -1,0 +1,27 @@
+modLoader="javafml"
+loaderVersion="[47,)"
+license="All Rights Reserved"
+
+[[mods]]
+modId="obsidiansovereign"
+version="1.0.0"
+displayName="The Obsidian Sovereign"
+authors="You"
+description='''
+A towering obsidian warlock-king stirs beneath the world. Three-phase boss fight,
+Runebound Soldier minions, the Sovereign's Scepter, and a full rune-forged armor set.
+'''
+
+[[dependencies.obsidiansovereign]]
+    modId="forge"
+    mandatory=true
+    versionRange="[47,)"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.obsidiansovereign]]
+    modId="minecraft"
+    mandatory=true
+    versionRange="[1.20.1,1.21)"
+    ordering="NONE"
+    side="BOTH"

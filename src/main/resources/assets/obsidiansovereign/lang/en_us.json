@@ -1,0 +1,23 @@
+{
+  "itemGroup.obsidiansovereign": "The Obsidian Sovereign",
+  "entity.obsidiansovereign.obsidian_sovereign": "The Obsidian Sovereign",
+  "entity.obsidiansovereign.runebound_soldier": "Runebound Soldier",
+  "entity.obsidiansovereign.arcane_bolt": "Arcane Bolt",
+  "item.obsidiansovereign.sovereign_rune_shard": "Sovereign Rune Shard",
+  "item.obsidiansovereign.sovereign_scepter": "Sovereign's Scepter",
+  "item.obsidiansovereign.sovereign_sigil": "Sovereign's Sigil",
+  "item.obsidiansovereign.sovereign_helmet": "Sovereign Crown-Helm",
+  "item.obsidiansovereign.sovereign_chestplate": "Sovereign Chestplate",
+  "item.obsidiansovereign.sovereign_leggings": "Sovereign Greaves",
+  "item.obsidiansovereign.sovereign_boots": "Sovereign Sabatons",
+  "item.obsidiansovereign.obsidian_sovereign_spawn_egg": "Obsidian Sovereign Spawn Egg",
+  "item.obsidiansovereign.runebound_soldier_spawn_egg": "Runebound Soldier Spawn Egg",
+  "tooltip.obsidiansovereign.scepter": "Right-click to hurl an arcane bolt",
+  "tooltip.obsidiansovereign.sigil": "Use on Crying Obsidian to summon the Sovereign",
+  "tooltip.obsidiansovereign.set_bonus": "Full Set Bonus:",
+  "tooltip.obsidiansovereign.set_bonus.passive": " Resistance I and Fire Resistance",
+  "tooltip.obsidiansovereign.set_bonus.ward": " Rune Ward: halves a heavy blow below 50% HP (60s cooldown)",
+  "message.obsidiansovereign.rune_ward": "Rune Ward activated!",
+  "message.obsidiansovereign.sigil_fail": "The sigil must be used on Crying Obsidian...",
+  "message.obsidiansovereign.sigil_peaceful": "The Sovereign will not answer on Peaceful."
+}
